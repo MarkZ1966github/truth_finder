@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Truth Finder</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        .rating { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Truth Finder</h1>
+    <div>
+        <input type="text" id="query" placeholder="Enter URL or quote">
+        <button onclick="verifyTruth()">Verify</button>
+    </div>
+    <div id="results"></div>
+    <script>
+        async function verifyTruth() {
+            const query = document.getElementById('query').value;
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = 'Loading...';
+            try {
+                const response = await fetch('/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query }),
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultsDiv.innerHTML = `Error: ${data.error}`;
+                    return;
+                }
+                resultsDiv.innerHTML = data.results.map(result => `
+                    <div class="result">
+                        <h3>${result.title}</h3>
+                        <p>${result.description}</p>
+                        <p><a href="${result.link}" target="_blank">${result.link}</a></p>
+                        <p class="rating">Truth Rating: ${result.rating}/10</p>
+                    </div>
+                `).join('');
+            } catch (error) {
+                resultsDiv.innerHTML = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
