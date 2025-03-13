@@ -1,4 +1,68 @@
-<!DOCTYPE html>
+<script>
+async function verifyContent() {
+    console.log('Starting content verification...');
+    
+    // Get the input value
+    const queryInput = document.getElementById('query-input');
+    const query = queryInput.value.trim();
+    
+    console.log('Query:', query);
+    
+    if (!query) {
+        console.error('Empty query');
+        displayError('Please enter some content to verify');
+        return;
+    }
+    
+    try {
+        // Show loading state
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = 'Processing...';
+        
+        // Make the API call
+        const response = await fetch('/verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: query })
+        });
+        
+        console.log('Response status:', response.status);
+        
+        const data = await response.json();
+        console.log
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to verify content');
+        }
+        
+        // Display results
+        displayResults(data);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        displayError(error.message);
+    }
+}
+function displayResults(data) {
+    const resultDiv = document.getElementById('result');
+    if (data.results && data.results.length > 0) {
+        const resultHtml = data.results.map(result => 
+            `<div class="result-item">
+                <a href="${result.url}" target="_blank">${result.title}</a>
+                <p>${result.description || ''}</p>
+            </div>`
+        ).join('');
+        resultDiv.innerHTML = resultHtml;
+    } else {
+        resultDiv.innerHTML = 'No results found';
+    }
+}
+function displayError(message) {
+    const resultDiv = document.getElementById('result');
+    resultDiv.innerHTML = `<div class="error">${message}</div>`;
+}
+</script>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
