@@ -1,94 +1,138 @@
-from GoogleNews import GoogleNews
-from typing import List, Dict
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-nltk.download('punkt')
-nltk.download('stopwords')
+import os
+import requests
+import urllib.parse
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
 class NewsService:
     def __init__(self):
-        self.googlenews = GoogleNews(lang='en', period='7d')
-    
-def get_relevant_links(self, query: str) -> List[Dict]:
-        self.googlenews.clear()
-        self.googlenews.search(query)
-        results = self.googlenews.results()
-        
-        # Process and rate the results
-        processed_results = []
-        for result in results[:10]:
-            relevance_score = self._calculate_relevance(query, result.get('desc', ''))
-            truth_score = self._calculate_truth_score(result.get('title', ''), 
-                                                    result.get('desc', ''),
-                                                    result.get('link', ''))
-            processed_results.append({
-                'title': result.get('title', ''),
-                'link': result.get('link', ''),
-                'description': result.get('desc', ''),
-                'relevance_score': min(round(relevance_score * 10), 10),
-                'truth_score': truth_score,
-                'ratings': {
-                    'relevance': min(round(relevance_score * 10), 10),
-                    'truth': truth_score
-                }
-            })
-        return processed_results
-def _calculate_relevance(self, query: str, content: str) -> float:
-        vectorizer = TfidfVectorizer(stop_words='english')
-        tfidf_matrix = vectorizer.fit_transform([query, content])
-        return cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
-        """Calculate a truth score from 1-10 based on various factors.
-        
-        1-3: Likely disinformation
-        4-6: Requires fact checking
-        7-10: Likely truthful
+        self.newsapi_key = os.environ.get("NEWSAPI_KEY")
+        if not self.newsapi_key:
+            raise ValueError("Please set the NEWSAPI_KEY environment variable with your NewsAPI key.")
+        self.newsapi_endpoint = "https://newsapi.org/v2/everything"
+        # Train a machine learning model on dummy data.
+        self.model = self.train_model()
+    def search_news_stories(self, query, max_results=10):
         """
-        score = 5.0  # Start with neutral score
+        Searches for news stories via the NewsAPI's /everything endpoint.
+        Returns a list of dictionaries, each containing 'title' and 'url'.
+        """
+        params = {
+            "q": query,
+            "pageSize": max_results,
+            "apiKey": self.newsapi_key,
+            "sortBy": "relevancy"
+        }
+        response = requests.get(self.newsapi_endpoint, params=params)
+        if response.status_code != 200:
+            print("Error fetching news:", response.text)
+            return []
+        data = response.json()
+        articles = data.get("articles", [])
+        stories = []
+        for article in articles:
+            stories.append({
+                "title": article.get("title", "No Title"),
+                "url": article.get("url", "#")
+            })
+        return stories
+    def scan_for_clickbait(self, title):
+        """
+        A simple function to estimate the clickbait factor in a title.
+        The function looks for exclamation marks, question marks, and select
+        keywords that might indicate sensational language.
+        Returns a normalized value between 0 and 1.
+        """
+        score = 0
+        if title:
+            score += title.count("!")
+            score += title.count("?")
+            lower_title = title.lower()
+            keywords = ["shocking", "amazing", "unbelievable", "you won't believe", "surprising"]
+            for word in keywords:
+                if word in lower_title:
+                    score += 1
+        normalized = min(score / 5.0, 1.0)
+        return normalized
+    def extract_features(self, url, title):
+        """
+        Extracts features used for predicting the news source rating.
+        Features include:
+          - Base score from domain heuristics.
+          - Clickbait factor from the title.
+        Returns a NumPy 2D-array (1 x n_features).
+        """
+        parsed_url = urllib.parse.urlparse(url)
+        domain = parsed_url.netloc.lower()
+        if "gov" in domain or "edu" in domain:
+            base_score = 10
+        elif any(x in domain for x in ["bbc", "cnn", "apnews", "reuters"]):
+            base_score = 9
+        elif "news" in domain:
+            base_score = 7
+        elif "blog" in domain:
+            base_score = 4
+        else:
+            base_score = 5
+        clickbait = self.scan_for_clickbait(title)
+        return np.array([base_score, clickbait]).reshape(1, -1)
+    def train_model(self):
+        """
+        Trains a simple machine learning model using a dummy dataset.
+        In a production setting, replace this with labeled training data.
+        The feature vector is [base_score, clickbait_factor] and the target is a rating.
+        """
+        X = np.array([
+            [10, 0.0],
+            [9,  0.1],
+            [7,  0.5],
+            [4,  0.8],
+            [5,  0.5],
+            [9,  0.0],
+            [8,  0.2],
+            [10, 0.0],
+            [4,  1.0],
+            [5,  0.3]
+        ])
+        y = np.array([10, 9, 7, 3, 5, 9, 8, 10, 2, 5])
+        model = RandomForestRegressor(n_estimators=10, random_state=42)
+        model.fit(X, y)
+        return model
+    def get_url_rating(self, url, title=""):
+        """
+        Calculates a "Site Reliability or Disinformation" rating for the given URL,
+        using both domain heuristics and the clickbait factor extracted from the title.
+        The model predicts a rating, which is then clamped between 1 and 10 without rounding.
+        Returns a dictionary with keys: rating, domain, explanation.
+        """
+        features = self.extract_features(url, title)
+        predicted = self.model.predict(features)
+        rating = predicted[0]
+        rating = max(1, min(10, rating))
         
-        # Domain credibility check
-        domain = self._extract_domain(url)
-        credible_domains = {'reuters.com', 'apnews.com', 'bloomberg.com', 'bbc.com', 
-                          'nytimes.com', 'wsj.com', 'washingtonpost.com'}
-        suspicious_domains = {'wordpress.com', 'blogspot.com', 'medium.com'}
+        parsed_url = urllib.parse.urlparse(url)
+        domain = parsed_url.netloc.lower()
+        explanation_lines = []
+        if "gov" in domain or "edu" in domain:
+            explanation_lines.append("This domain is governmental or educational, which is trusted.")
+        elif any(x in domain for x in ["bbc", "cnn", "apnews", "reuters"]):
+            explanation_lines.append("This is a well-known, reliable news source.")
+        elif "news" in domain:
+            explanation_lines.append("This domain appears to be a news site.")
+        elif "blog" in domain:
+            explanation_lines.append("This domain is a blog, which may be less reliable.")
+        else:
+            explanation_lines.append("Using a default rating based on heuristics.")
         
-        if domain in credible_domains:
-            score += 2.5
-        elif domain in suspicious_domains:
-            score -= 1.5
-            
-        # Content analysis
-        text = f"{title} {description}".lower()
+        clickbait = self.scan_for_clickbait(title)
+        if clickbait > 0.5:
+            explanation_lines.append("High clickbait indicators are present in the title.")
+        else:
+            explanation_lines.append("Low clickbait factor detected.")
         
-        # Check for clickbait patterns
-        clickbait_patterns = ['you won\'t believe', 'shocking', 'mind blowing', 
-                            'this will blow your mind', '!!!', '???']
-        if any(pattern in text for pattern in clickbait_patterns):
-            score -= 1.0
-            
-        # Check for balanced reporting indicators
-        balanced_indicators = ['according to', 'research shows', 'studies indicate', 
-                            'experts say', 'evidence suggests']
-        if any(indicator in text for indicator in balanced_indicators):
-            score += 1.0
-            
-        # Normalize score to 1-10 range
-        score = max(1, min(10, score))
-        return round(score)
+        explanation = " ".join(explanation_lines)
         
-def _extract_domain(self, url: str) -> str:
-        """Extract domain from URL."""
-        try:
-            from urllib.parse import urlparse
-            parsed_uri = urlparse(url)
-            domain = '{uri.netloc}'.format(uri=parsed_uri)
-            return domain
-        except:
-            return url
-        """Extract the main domain from a URL."""
-        from urllib.parse import urlparse
-        try:
-            return urlparse(url).netloc.lower()
-        except:
-            return ""
+        return {
+            "rating": rating,
+            "domain": domain,
+            "explanation": explanation
+        }

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Truth Finder - Results</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <div class="container">
+        <a class="navbar-brand" href="#">Truth Finder</a>
+      </div>
+    </nav>
+    <div class="container my-4">
+      <h1 class="mb-4">Truth Finder - Results</h1>
+      <p>You searched for: <em>{{ query }}</em></p>
+      {% if results %}
+        <h2 class="mt-4">News Stories and Their Site Reliability or Disinformation Ratings</h2>
+        <div class="list-group">
+          {% for story in results %}
+            <div class="list-group-item">
+              <h5>
+                <a href="{{ story.url }}" target="_blank">{{ story.title }}</a>
+              </h5>
+              <p class="mb-1"><strong>Domain:</strong> <span class="text-muted">{{ story.domain }}</span></p>
+              <p class="mb-1">
+                <strong>Rating:</strong> 
+                <span class="badge bg-primary">{{ story.rating }}</span>
+              </p>
+              <p class="mb-1"><strong>Explanation:</strong> {{ story.explanation }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="alert alert-info mt-4" role="alert">
+          No news stories were found for your search.
+        </div>
+      {% endif %}
+      <a href="/" class="btn btn-secondary mt-4">Back to Search</a>
+    </div>
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

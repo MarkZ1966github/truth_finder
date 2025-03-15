@@ -1,1 +1,1 @@
-Commit for 3-14-2025 at 7:03am - still needs to have the ratings display. 
+3-15-2025 - this is version 1.0 that has been tested locally, next step is to deploy it to a domain and server. 
